@@ -1,0 +1,57 @@
+services:
+  vllm:
+    image: ${VLLM_IMAGE:-vllm/vllm-openai:v0.25.0}
+    command:
+      - --model
+      - /models/current
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8001"
+      - --served-model-name
+      - ${SERVED_MODEL:-local-model}
+      - --max-model-len
+      - ${MODEL_CONTEXT_LENGTH:-32768}
+      - --gpu-memory-utilization
+      - ${GPU_MEMORY_UTILIZATION:-0.90}
+      - --max-num-seqs
+      - ${MAX_NUM_SEQS:-2}
+      - --max-num-batched-tokens
+      - ${MAX_NUM_BATCHED_TOKENS:-4096}
+      - --enable-prefix-caching
+      - --enable-auto-tool-choice
+      - --tool-call-parser
+      - ${TOOL_CALL_PARSER:-hermes}
+    volumes:
+      - ${MODEL_PATH:?Set MODEL_PATH in .env}:/models/current:ro
+    expose:
+      - "8001"
+    ipc: host
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 60
+      start_period: 30s
+    restart: unless-stopped
+
+  gateway:
+    build: .
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      VLLM_UPSTREAM: http://vllm:8001
+    ports:
+      - ${GATEWAY_PORT:-8000}:8000
+    depends_on:
+      vllm:
+        condition: service_healthy
+    restart: unless-stopped

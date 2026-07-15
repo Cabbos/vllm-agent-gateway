@@ -1,0 +1,58 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "vllm-agent-gateway"
+version = "0.1.0"
+description = "A multi-protocol OpenAI, Anthropic, Ollama, Gemini and Azure-compatible gateway for vLLM."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+authors = [{ name = "Cabbos" }]
+keywords = ["vllm", "openai", "anthropic", "ollama", "gemini", "llm", "gateway"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Internet :: WWW/HTTP :: HTTP Servers",
+]
+dependencies = [
+  "anyio>=4.4,<5",
+  "fastapi>=0.115,<1",
+  "httpx>=0.27,<1",
+  "PyMuPDF>=1.24,<2",
+  "uvicorn[standard]>=0.30,<1",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.3,<10",
+  "pytest-asyncio>=0.24,<1",
+  "ruff>=0.9,<1",
+]
+
+[project.scripts]
+vllm-agent-gateway = "vllm_agent_gateway.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/Cabbos/vllm-agent-gateway"
+Issues = "https://github.com/Cabbos/vllm-agent-gateway/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/vllm_agent_gateway"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = ["E501"]
+
