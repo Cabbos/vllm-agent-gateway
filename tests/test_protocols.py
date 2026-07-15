@@ -1,7 +1,10 @@
 import json
 
+import pytest
+
 from vllm_agent_gateway.app import (
     SERVED_MODEL,
+    AnthropicCompatibilityError,
     _gemini_to_openai,
     _normalize_proxy_path,
     _ollama_nonstream_response,
@@ -26,6 +29,19 @@ def test_openai_alias_and_reasoning_are_mapped():
     assert events[0]["code"] == "model_routed_local"
 
 
+def test_openai_responses_reasoning_object_controls_chat_template():
+    payload, _events = transform_openai_request(
+        {
+            "model": "gpt-example",
+            "input": "hello",
+            "reasoning": {"effort": "none"},
+        }
+    )
+
+    assert payload["reasoning"] == {"effort": "none"}
+    assert payload["chat_template_kwargs"]["enable_thinking"] is False
+
+
 def test_anthropic_thinking_can_toggle_per_request():
     enabled, enabled_events = transform_anthropic_request(
         {
@@ -48,6 +64,17 @@ def test_anthropic_thinking_can_toggle_per_request():
     assert disabled["chat_template_kwargs"]["enable_thinking"] is False
     assert any(event["code"] == "thinking_enabled" for event in enabled_events)
     assert any(event["code"] == "thinking_disabled" for event in disabled_events)
+
+
+def test_legacy_transform_wraps_new_adapter_errors():
+    with pytest.raises(AnthropicCompatibilityError, match="thinking.type"):
+        transform_anthropic_request(
+            {
+                "model": "claude-example",
+                "thinking": {"type": "unexpected"},
+                "messages": [{"role": "user", "content": "hello"}],
+            }
+        )
 
 
 def test_common_path_aliases():

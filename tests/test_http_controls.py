@@ -13,10 +13,10 @@ def test_root_reports_gateway_metadata():
     assert response.json()["name"] == "vLLM Agent Gateway"
 
 
-def test_optional_api_key_rejects_unauthenticated_requests(monkeypatch):
-    monkeypatch.setattr(gateway, "settings", replace(gateway.settings, api_keys=("secret",)))
+def test_optional_api_key_rejects_unauthenticated_requests():
+    configured = replace(gateway.settings, api_keys=("secret",))
 
-    with TestClient(gateway.app) as client:
+    with TestClient(gateway.create_app(configured)) as client:
         response = client.get("/v1/models")
 
     assert response.status_code == 401
@@ -24,10 +24,10 @@ def test_optional_api_key_rejects_unauthenticated_requests(monkeypatch):
     assert response.headers["x-request-id"]
 
 
-def test_health_endpoint_stays_public_when_auth_is_enabled(monkeypatch):
-    monkeypatch.setattr(gateway, "settings", replace(gateway.settings, api_keys=("secret",)))
+def test_health_endpoint_stays_public_when_auth_is_enabled():
+    configured = replace(gateway.settings, api_keys=("secret",))
 
-    with TestClient(gateway.app) as client:
+    with TestClient(gateway.create_app(configured)) as client:
         response = client.get("/")
 
     assert response.status_code == 200

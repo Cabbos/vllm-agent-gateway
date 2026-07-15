@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "vllm-agent-gateway"
-version = "0.1.0"
+version = "0.2.0"
 description = "A multi-protocol OpenAI, Anthropic, Ollama, Gemini and Azure-compatible gateway for vLLM."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -55,4 +55,3 @@ line-length = 100
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
 ignore = ["E501"]
-
