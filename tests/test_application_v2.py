@@ -35,6 +35,23 @@ def test_client_credentials_are_not_forwarded_to_vllm():
     }
 
 
+def test_proxy_preserves_duplicate_noncredential_query_parameters():
+    seen_query = []
+
+    def upstream(request: httpx.Request) -> httpx.Response:
+        nonlocal seen_query
+        seen_query = list(request.url.params.multi_items())
+        return httpx.Response(200, json={"object": "list", "data": []})
+
+    config = replace(settings, upstream="http://upstream.test", api_keys=())
+    app = create_app(config, upstream_transport=httpx.MockTransport(upstream))
+    with TestClient(app) as client:
+        response = client.get("/v1/models?tag=a&tag=b&key=secret&api-version=2025-01-01")
+
+    assert response.status_code == 200
+    assert seen_query == [("tag", "a"), ("tag", "b")]
+
+
 def test_anthropic_history_is_compacted_before_upstream():
     seen_payload = {}
 

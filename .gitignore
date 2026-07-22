@@ -4,8 +4,10 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 .ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
 build/
 dist/
 *.egg-info/
 *.log
-

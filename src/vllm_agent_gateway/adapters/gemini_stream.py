@@ -17,6 +17,35 @@ class _ToolCall:
     arguments: list[str] = field(default_factory=list)
 
 
+@dataclass
+class _SSEEventParser:
+    data_lines: list[str] = field(default_factory=list)
+    stopped: bool = False
+
+    def consume_line(self, line: str) -> dict[str, Any] | None:
+        if line == "":
+            if not self.data_lines:
+                return None
+            payload = "\n".join(self.data_lines)
+            self.data_lines.clear()
+            if payload.strip() == "[DONE]":
+                self.stopped = True
+                return None
+            try:
+                value = json.loads(payload)
+            except (json.JSONDecodeError, TypeError):
+                return None
+            return value if isinstance(value, dict) else None
+        if line.startswith(":") or ":" not in line:
+            return None
+        field_name, value = line.split(":", 1)
+        if value.startswith(" "):
+            value = value[1:]
+        if field_name == "data":
+            self.data_lines.append(value)
+        return None
+
+
 def _next_line(buffer: str, *, final: bool = False) -> tuple[str, str] | None:
     """Return one SSE line and the unconsumed buffer.
 
@@ -50,31 +79,7 @@ async def parse_openai_sse(
 
     decoder = codecs.getincrementaldecoder("utf-8")()
     buffer = ""
-    data_lines: list[str] = []
-    stopped = False
-
-    def consume_line(line: str) -> tuple[dict[str, Any] | None, bool]:
-        nonlocal data_lines
-        if line == "":
-            if not data_lines:
-                return None, False
-            payload = "\n".join(data_lines)
-            data_lines = []
-            if payload.strip() == "[DONE]":
-                return None, True
-            try:
-                value = json.loads(payload)
-            except (json.JSONDecodeError, TypeError):
-                return None, False
-            return (value if isinstance(value, dict) else None), False
-        if line.startswith(":") or ":" not in line:
-            return None, False
-        field_name, value = line.split(":", 1)
-        if value.startswith(" "):
-            value = value[1:]
-        if field_name == "data":
-            data_lines.append(value)
-        return None, False
+    parser = _SSEEventParser()
 
     async for chunk in chunks:
         if isinstance(chunk, bytes):
@@ -88,24 +93,24 @@ async def parse_openai_sse(
 
         while (line_result := _next_line(buffer)) is not None:
             line, buffer = line_result
-            event, stopped = consume_line(line)
+            event = parser.consume_line(line)
             if event is not None:
                 yield event
-            if stopped:
+            if parser.stopped:
                 return
 
     buffer += decoder.decode(b"", final=True)
     while (line_result := _next_line(buffer, final=True)) is not None:
         line, buffer = line_result
-        event, stopped = consume_line(line)
+        event = parser.consume_line(line)
         if event is not None:
             yield event
-        if stopped:
+        if parser.stopped:
             return
 
     # SSE permits the final event to end at EOF without a blank line.
-    if data_lines:
-        event, _ = consume_line("")
+    if parser.data_lines:
+        event = parser.consume_line("")
         if event is not None:
             yield event
 
@@ -196,6 +201,100 @@ def _response_envelope(
     return response
 
 
+def _delta_parts(delta: dict[str, Any]) -> list[dict[str, Any]]:
+    parts: list[dict[str, Any]] = []
+    reasoning = next(
+        (
+            delta[key]
+            for key in ("reasoning_content", "reasoning", "thinking")
+            if isinstance(delta.get(key), str) and delta[key]
+        ),
+        None,
+    )
+    if reasoning is not None:
+        parts.append({"text": reasoning, "thought": True})
+    content = delta.get("content")
+    if isinstance(content, str) and content:
+        parts.append({"text": content})
+    return parts
+
+
+def _update_tool_deltas(
+    delta: dict[str, Any],
+    *,
+    choice_index: int,
+    tools: dict[int, dict[int, _ToolCall]],
+) -> None:
+    tool_deltas = delta.get("tool_calls")
+    if not isinstance(tool_deltas, list):
+        return
+    choice_tools = tools.setdefault(choice_index, {})
+    for fallback_index, tool_delta in enumerate(tool_deltas):
+        if not isinstance(tool_delta, dict):
+            continue
+        tool_index = _integer(tool_delta.get("index"))
+        tool_index = fallback_index if tool_index is None else tool_index
+        call = choice_tools.setdefault(tool_index, _ToolCall())
+        if tool_delta.get("id") and call.call_id is None:
+            call.call_id = str(tool_delta["id"])
+        function = tool_delta.get("function")
+        if not isinstance(function, dict):
+            continue
+        if isinstance(function.get("name"), str):
+            call.name.append(function["name"])
+        if isinstance(function.get("arguments"), str):
+            call.arguments.append(function["arguments"])
+
+
+def _candidate_from_choice(
+    choice: Any,
+    *,
+    fallback_index: int,
+    tools: dict[int, dict[int, _ToolCall]],
+) -> dict[str, Any] | None:
+    if not isinstance(choice, dict):
+        return None
+    choice_index = _integer(choice.get("index"))
+    choice_index = fallback_index if choice_index is None else choice_index
+    delta = choice.get("delta")
+    delta = delta if isinstance(delta, dict) else {}
+    parts = _delta_parts(delta)
+    _update_tool_deltas(delta, choice_index=choice_index, tools=tools)
+
+    finish = choice.get("finish_reason")
+    if finish is not None:
+        parts.extend(_tool_parts(tools.pop(choice_index, {})))
+    if not parts and finish is None:
+        return None
+    candidate: dict[str, Any] = {
+        "content": {"parts": parts or [{"text": ""}], "role": "model"},
+        "index": choice_index,
+    }
+    if finish is not None:
+        candidate["finishReason"] = _finish_reason(finish)
+    return candidate
+
+
+def _event_candidates(
+    event: dict[str, Any], tools: dict[int, dict[int, _ToolCall]]
+) -> list[dict[str, Any]]:
+    choices = event.get("choices")
+    if not isinstance(choices, list):
+        return []
+    return [
+        candidate
+        for fallback_index, choice in enumerate(choices)
+        if (
+            candidate := _candidate_from_choice(
+                choice,
+                fallback_index=fallback_index,
+                tools=tools,
+            )
+        )
+        is not None
+    ]
+
+
 async def openai_sse_to_gemini(
     chunks: AsyncIterable[StreamChunk],
     *,
@@ -219,64 +318,7 @@ async def openai_sse_to_gemini(
         if response_id is None and event.get("id"):
             current_response_id = str(event["id"])
 
-        candidates: list[dict[str, Any]] = []
-        choices = event.get("choices")
-        if isinstance(choices, list):
-            for fallback_index, choice in enumerate(choices):
-                if not isinstance(choice, dict):
-                    continue
-                choice_index = _integer(choice.get("index"))
-                choice_index = fallback_index if choice_index is None else choice_index
-                delta = choice.get("delta")
-                delta = delta if isinstance(delta, dict) else {}
-                parts: list[dict[str, Any]] = []
-
-                reasoning = next(
-                    (
-                        delta[key]
-                        for key in ("reasoning_content", "reasoning", "thinking")
-                        if isinstance(delta.get(key), str) and delta[key]
-                    ),
-                    None,
-                )
-                if reasoning is not None:
-                    parts.append({"text": reasoning, "thought": True})
-                content = delta.get("content")
-                if isinstance(content, str) and content:
-                    parts.append({"text": content})
-
-                tool_deltas = delta.get("tool_calls")
-                if isinstance(tool_deltas, list):
-                    choice_tools = tools.setdefault(choice_index, {})
-                    for fallback_tool_index, tool_delta in enumerate(tool_deltas):
-                        if not isinstance(tool_delta, dict):
-                            continue
-                        tool_index = _integer(tool_delta.get("index"))
-                        tool_index = fallback_tool_index if tool_index is None else tool_index
-                        call = choice_tools.setdefault(tool_index, _ToolCall())
-                        if tool_delta.get("id") and call.call_id is None:
-                            call.call_id = str(tool_delta["id"])
-                        function = tool_delta.get("function")
-                        if isinstance(function, dict):
-                            if isinstance(function.get("name"), str):
-                                call.name.append(function["name"])
-                            if isinstance(function.get("arguments"), str):
-                                call.arguments.append(function["arguments"])
-
-                finish = choice.get("finish_reason")
-                if finish is not None:
-                    parts.extend(_tool_parts(tools.pop(choice_index, {})))
-                if parts or finish is not None:
-                    candidate: dict[str, Any] = {
-                        "content": {
-                            "parts": parts or [{"text": ""}],
-                            "role": "model",
-                        },
-                        "index": choice_index,
-                    }
-                    if finish is not None:
-                        candidate["finishReason"] = _finish_reason(finish)
-                    candidates.append(candidate)
+        candidates = _event_candidates(event, tools)
 
         usage = _usage_metadata(event.get("usage"))
         if candidates or usage:

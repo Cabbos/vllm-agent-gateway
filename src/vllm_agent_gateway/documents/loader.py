@@ -101,6 +101,7 @@ async def load_document_source(
         url = source.get("url")
         if not isinstance(url, str):
             raise DocumentSourceError("Document URL source.url must be a string.")
+        result: bytes | RemoteFetchResult
         if remote_fetcher is None:
             result = await fetch_remote_document(
                 url,

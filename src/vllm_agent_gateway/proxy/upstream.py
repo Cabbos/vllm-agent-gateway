@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import AsyncIterator, Mapping, Sequence
+from collections.abc import AsyncIterator, Mapping
 
 import httpx
 from fastapi import Request
@@ -50,7 +50,7 @@ async def forward_streaming(
     request: Request,
     upstream_url: str,
     body: bytes,
-    query_params: Sequence[tuple[str, str]] = (),
+    query_params: str = "",
     upstream_api_key: str = "",
     response_headers: Mapping[str, str] | None = None,
 ):
