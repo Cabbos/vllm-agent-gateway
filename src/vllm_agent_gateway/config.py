@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from typing import Literal
 from urllib.parse import urlsplit
 
 
@@ -31,6 +32,13 @@ def _csv(name: str, default: str = "") -> tuple[str, ...]:
     )
 
 
+def _url_policy(name: str = "DOCUMENT_URL_POLICY") -> Literal["deny", "allowlist"]:
+    value = os.environ.get(name, "deny").strip().lower()
+    if value not in {"deny", "allowlist"}:
+        raise ValueError(f"{name} must be 'deny' or 'allowlist'")
+    return "allowlist" if value == "allowlist" else "deny"
+
+
 @dataclass(frozen=True, slots=True)
 class Settings:
     upstream: str
@@ -58,7 +66,7 @@ class Settings:
     pdf_max_page_pixels: int
     pdf_conversion_concurrency: int
     pdf_conversion_timeout_seconds: float
-    document_url_policy: str
+    document_url_policy: Literal["deny", "allowlist"]
     document_allowed_hosts: tuple[str, ...]
     document_extra_allowed_networks: tuple[str, ...]
     max_inflight: int
@@ -159,7 +167,7 @@ class Settings:
             pdf_max_page_pixels=_integer("PDF_MAX_PAGE_PIXELS", 16_000_000),
             pdf_conversion_concurrency=_integer("PDF_CONVERSION_CONCURRENCY", 2),
             pdf_conversion_timeout_seconds=_floating("PDF_CONVERSION_TIMEOUT_SECONDS", 60.0),
-            document_url_policy=os.environ.get("DOCUMENT_URL_POLICY", "deny").strip().lower(),
+            document_url_policy=_url_policy(),
             document_allowed_hosts=_csv("DOCUMENT_ALLOWED_HOSTS"),
             document_extra_allowed_networks=_csv("DOCUMENT_EXTRA_ALLOWED_NETWORKS"),
             max_inflight=_integer("GATEWAY_MAX_INFLIGHT", 0),

@@ -302,11 +302,15 @@ reasoning is emitted correctly.
 python -m pip install -e ".[dev]"
 ruff check .
 ruff format --check .
-pytest -q
+mypy src
+pytest -q --cov=vllm_agent_gateway --cov-report=term-missing
+pre-commit install
 ```
 
 The tests exercise transformations, fragmented streaming, malicious document
-inputs, and middleware controls without a GPU or running model.
+inputs, and middleware controls without a GPU or running model. CI rejects
+functions above a McCabe complexity of 18, type-checking failures, and source
+coverage below 80%.
 
 For a running gateway, preview or run the dependency-free protocol/load smoke:
 

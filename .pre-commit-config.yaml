@@ -1,0 +1,24 @@
+minimum_pre_commit_version: "4.0.0"
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: Ruff lint and complexity
+        entry: python -m ruff check .
+        language: system
+        pass_filenames: false
+      - id: ruff-format
+        name: Ruff format check
+        entry: python -m ruff format --check .
+        language: system
+        pass_filenames: false
+      - id: mypy
+        name: Mypy source check
+        entry: python -m mypy src
+        language: system
+        pass_filenames: false
+      - id: pytest
+        name: Pytest with coverage gate
+        entry: python -m pytest -q --cov=vllm_agent_gateway --cov-report=term-missing
+        language: system
+        pass_filenames: false

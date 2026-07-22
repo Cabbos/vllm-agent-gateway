@@ -6,6 +6,7 @@ import re
 import time
 from contextlib import asynccontextmanager
 from typing import Any
+from urllib.parse import urlencode
 
 import httpx
 from fastapi import FastAPI, Request
@@ -16,7 +17,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from .adapters import anthropic, gemini, openai
 from .adapters import ollama as ollama_adapter
 from .adapters.common import event_codes
-from .adapters.gemini_stream import convert_openai_sse
+from .adapters.gemini_stream import GeminiFraming, convert_openai_sse
 from .adapters.paths import normalize_proxy_path
 from .config import Settings, settings
 from .document_service import DocumentService
@@ -42,12 +43,14 @@ def _anonymous_rate_identity(_scope: Any) -> str:
     return "anonymous"
 
 
-def _query_without_credentials(request: Request) -> list[tuple[str, str]]:
-    return [
-        (key, value)
-        for key, value in request.query_params.multi_items()
-        if key not in {"key", "api-version"}
-    ]
+def _query_without_credentials(request: Request) -> str:
+    return urlencode(
+        [
+            (key, value)
+            for key, value in request.query_params.multi_items()
+            if key not in {"key", "api-version"}
+        ]
+    )
 
 
 def _upstream_headers(config: Settings) -> dict[str, str]:
@@ -92,6 +95,22 @@ def _document_service(config: Settings) -> DocumentService:
     )
 
 
+def _ollama_model_entry(
+    config: Settings,
+    details: dict[str, Any],
+    *,
+    running: bool = False,
+) -> dict[str, Any]:
+    return ollama_adapter.model_entry(
+        served_model=config.served_model,
+        details=details,
+        size_bytes=config.model_size_bytes,
+        vram_bytes=config.model_vram_bytes,
+        context_length=config.model_context_length,
+        running=running,
+    )
+
+
 async def _send_openai_stream(
     request: Request,
     payload: dict[str, Any],
@@ -118,19 +137,12 @@ async def _ollama_request(request: Request, path: str, body: bytes, config: Sett
         parameter_size=config.model_parameter_size,
         quantization=config.model_quantization,
     )
-    entry_args = {
-        "served_model": config.served_model,
-        "details": details,
-        "size_bytes": config.model_size_bytes,
-        "vram_bytes": config.model_vram_bytes,
-        "context_length": config.model_context_length,
-    }
     if request.method in {"GET", "HEAD"} and path == "api/version":
         return JSONResponse({"version": "0.6.0-local-gateway"})
     if request.method in {"GET", "HEAD"} and path == "api/tags":
-        return JSONResponse({"models": [ollama_adapter.model_entry(**entry_args)]})
+        return JSONResponse({"models": [_ollama_model_entry(config, details)]})
     if request.method in {"GET", "HEAD"} and path == "api/ps":
-        return JSONResponse({"models": [ollama_adapter.model_entry(**entry_args, running=True)]})
+        return JSONResponse({"models": [_ollama_model_entry(config, details, running=True)]})
 
     try:
         payload = json.loads(body) if body else {}
@@ -222,7 +234,7 @@ async def _ollama_request(request: Request, path: str, body: bytes, config: Sett
 async def _close_after_gemini_stream(
     upstream: httpx.Response,
     *,
-    framing: str,
+    framing: GeminiFraming,
     model_version: str,
 ):
     try:
@@ -303,7 +315,7 @@ async def _gemini_request(request: Request, path: str, body: bytes, config: Sett
             await upstream.aread()
             await close_response_shielded(upstream)
             return _gemini_error("vLLM rejected the request.", upstream.status_code)
-        framing = "sse" if request.query_params.get("alt") == "sse" else "json-array"
+        framing: GeminiFraming = "sse" if request.query_params.get("alt") == "sse" else "json-array"
         media_type = "text/event-stream" if framing == "sse" else "application/json"
         return UpstreamStreamingResponse(
             _close_after_gemini_stream(

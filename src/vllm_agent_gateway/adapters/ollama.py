@@ -14,6 +14,10 @@ from vllm_agent_gateway.errors import GatewayError
 from vllm_agent_gateway.proxy.streaming import close_response_shielded
 
 
+def _as_dict(value: Any) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
+
+
 def _utc_now() -> str:
     return datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
@@ -114,7 +118,8 @@ def messages_to_openai(messages: Any) -> list[dict[str, Any]]:
             for call_index, call in enumerate(tool_calls):
                 if not isinstance(call, dict):
                     continue
-                function = call.get("function") if isinstance(call.get("function"), dict) else call
+                function_value = call.get("function")
+                function = function_value if isinstance(function_value, dict) else call
                 name = str(function.get("name") or "tool")
                 arguments = function.get("arguments", {})
                 if not isinstance(arguments, str):
@@ -145,7 +150,7 @@ def to_openai(
     payload: dict[str, Any], mode: str, *, served_model: str
 ) -> tuple[dict[str, Any], str]:
     requested_model = str(payload.get("model") or served_model)
-    options = payload.get("options") if isinstance(payload.get("options"), dict) else {}
+    options = _as_dict(payload.get("options"))
     if mode == "chat":
         messages = messages_to_openai(payload.get("messages", []))
     else:
@@ -209,7 +214,7 @@ def _tool_calls_to_ollama(tool_calls: Any) -> list[dict[str, Any]]:
     for call in tool_calls:
         if not isinstance(call, dict):
             continue
-        function = call.get("function") if isinstance(call.get("function"), dict) else {}
+        function = _as_dict(call.get("function"))
         arguments = function.get("arguments", {})
         if isinstance(arguments, str):
             try:
@@ -231,9 +236,9 @@ def nonstream_response(
     data: dict[str, Any], requested_model: str, mode: str, started_ns: int
 ) -> dict[str, Any]:
     choices = data.get("choices") if isinstance(data.get("choices"), list) else []
-    choice = choices[0] if choices else {}
-    message = choice.get("message") if isinstance(choice.get("message"), dict) else {}
-    usage = data.get("usage") if isinstance(data.get("usage"), dict) else {}
+    choice = _as_dict(choices[0] if choices else None)
+    message = _as_dict(choice.get("message"))
+    usage = _as_dict(data.get("usage"))
     content = message.get("content") or ""
     reasoning = message.get("reasoning") or message.get("reasoning_content") or ""
     tool_calls = _tool_calls_to_ollama(message.get("tool_calls"))
@@ -280,13 +285,14 @@ async def stream_response(
                 event = json.loads(raw)
             except json.JSONDecodeError:
                 continue
-            if isinstance(event.get("usage"), dict):
-                usage = event["usage"]
+            event_usage = event.get("usage")
+            if isinstance(event_usage, dict):
+                usage = event_usage
             choices = event.get("choices") if isinstance(event.get("choices"), list) else []
             if not choices:
                 continue
-            choice = choices[0]
-            delta = choice.get("delta") if isinstance(choice.get("delta"), dict) else {}
+            choice = _as_dict(choices[0])
+            delta = _as_dict(choice.get("delta"))
             if choice.get("finish_reason"):
                 finish_reason = str(choice["finish_reason"])
 
@@ -297,7 +303,7 @@ async def stream_response(
                     continue
                 index = int(call.get("index") or 0)
                 fragment = tool_fragments.setdefault(index, {"name": "", "arguments": ""})
-                function = call.get("function") if isinstance(call.get("function"), dict) else {}
+                function = _as_dict(call.get("function"))
                 fragment["name"] += str(function.get("name") or "")
                 fragment["arguments"] += str(function.get("arguments") or "")
 

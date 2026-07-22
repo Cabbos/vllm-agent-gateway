@@ -47,6 +47,8 @@ and the project intends to follow [Semantic Versioning](https://semver.org/).
 - The former implicit `198.18.0.0/15` transparent-proxy allowance was removed.
 - The default request-body limit is derived from the raw PDF limit to account
   for base64 expansion and JSON overhead.
+- Gemini request and stream conversion are decomposed into focused helpers;
+  CI now enforces type checking, 80% coverage, and bounded function complexity.
 - Client API credentials are stripped before upstream forwarding; an optional
   dedicated upstream credential is injected instead.
 - Gemini non-SSE streaming uses a streaming JSON array instead of a synthesized

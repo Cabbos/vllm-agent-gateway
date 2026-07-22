@@ -29,8 +29,11 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
+  "mypy>=1.15,<2",
+  "pre-commit>=4,<5",
   "pytest>=8.3,<10",
   "pytest-asyncio>=0.24,<1",
+  "pytest-cov>=6,<8",
   "ruff>=0.9,<1",
 ]
 
@@ -46,6 +49,7 @@ packages = ["src/vllm_agent_gateway"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["src"]
 asyncio_mode = "auto"
 
 [tool.ruff]
@@ -53,5 +57,26 @@ target-version = "py311"
 line-length = 100
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B", "SIM"]
+select = ["E", "F", "I", "UP", "B", "SIM", "C90"]
 ignore = ["E501"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 18
+
+[tool.mypy]
+python_version = "3.11"
+files = ["src/vllm_agent_gateway"]
+check_untyped_defs = true
+ignore_missing_imports = true
+no_implicit_optional = true
+show_error_codes = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+
+[tool.coverage.run]
+source = ["vllm_agent_gateway"]
+
+[tool.coverage.report]
+fail_under = 80
+show_missing = true
+skip_covered = true

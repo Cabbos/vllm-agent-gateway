@@ -13,7 +13,8 @@ DocumentConverter = Callable[
 
 
 def _file_document(part: dict[str, Any]) -> dict[str, Any]:
-    file_info = part.get("file") if isinstance(part.get("file"), dict) else part
+    file_value = part.get("file")
+    file_info = file_value if isinstance(file_value, dict) else part
     filename = str(file_info.get("filename") or part.get("filename") or "attached PDF")
     if file_info.get("file_id") or part.get("file_id"):
         raise GatewayError(
@@ -76,7 +77,8 @@ async def _document_replacements(
                 }
             )
             continue
-        source = block.get("source") if isinstance(block.get("source"), dict) else {}
+        source_value = block.get("source")
+        source = source_value if isinstance(source_value, dict) else {}
         data_url = f"data:{source.get('media_type', 'image/jpeg')};base64,{source.get('data', '')}"
         replacements.append(
             {"type": "input_image", "image_url": data_url, "detail": "auto"}
@@ -84,7 +86,8 @@ async def _document_replacements(
             else {"type": "image_url", "image_url": {"url": data_url, "detail": "auto"}}
         )
     stats = dict(stats)
-    source_type = document.get("source", {}).get("media_type")
+    source_value = document.get("source")
+    source_type = source_value.get("media_type") if isinstance(source_value, dict) else None
     stats["code"] = (
         "openai_input_file_pdf" if source_type == "application/pdf" else "openai_input_file_text"
     )
