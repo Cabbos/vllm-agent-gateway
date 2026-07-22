@@ -126,6 +126,7 @@ def transform_anthropic_request(payload: Any):
                 payload,
                 served_model=SERVED_MODEL,
                 convert_document=_compat_convert,
+                max_prompt_images=settings.max_prompt_images,
             )
         )
     except (DocumentError, GatewayError) as exc:

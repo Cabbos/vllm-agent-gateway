@@ -238,6 +238,14 @@ thinking parts, completed function calls, finish reasons, and usage metadata.
 This is protocol conversion, not Google infrastructure: Files API uploads,
 grounding, cached content, safety services, and Vertex IAM are not implemented.
 
+## Multimodal history compaction
+
+Anthropic clients resend the complete conversation, including images from
+older turns. `GATEWAY_MAX_PROMPT_IMAGES` defaults to `4`; keep it at or below
+vLLM's `--limit-mm-per-prompt` image count. The gateway preserves the newest
+images and replaces older visual payloads with text placeholders while keeping
+the rest of the conversation intact.
+
 ## Metrics
 
 When `GATEWAY_METRICS_ENABLED=true`, `/gateway/metrics` exposes Prometheus text

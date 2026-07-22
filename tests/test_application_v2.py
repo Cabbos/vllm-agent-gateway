@@ -35,6 +35,54 @@ def test_client_credentials_are_not_forwarded_to_vllm():
     }
 
 
+def test_anthropic_history_is_compacted_before_upstream():
+    seen_payload = {}
+
+    def upstream(request: httpx.Request) -> httpx.Response:
+        nonlocal seen_payload
+        seen_payload = json.loads(request.content)
+        return httpx.Response(
+            200,
+            json={
+                "id": "msg-local",
+                "type": "message",
+                "role": "assistant",
+                "content": [{"type": "text", "text": "ok"}],
+                "model": "local-model",
+                "stop_reason": "end_turn",
+                "usage": {"input_tokens": 1, "output_tokens": 1},
+            },
+        )
+
+    def image(number: int) -> dict:
+        return {
+            "type": "image",
+            "source": {"type": "base64", "media_type": "image/png", "data": str(number)},
+        }
+
+    config = replace(
+        settings,
+        upstream="http://upstream.test",
+        api_keys=(),
+        max_prompt_images=2,
+    )
+    app = create_app(config, upstream_transport=httpx.MockTransport(upstream))
+    with TestClient(app) as client:
+        response = client.post(
+            "/v1/messages",
+            json={
+                "model": "alias",
+                "max_tokens": 8,
+                "messages": [{"role": "user", "content": [image(1), image(2), image(3)]}],
+            },
+        )
+
+    assert response.status_code == 200
+    assert "image_history_compacted" in response.headers["x-local-anthropic-compat"]
+    content = seen_payload["messages"][0]["content"]
+    assert [block["type"] for block in content] == ["text", "image", "image"]
+
+
 def test_remote_documents_are_denied_before_upstream_by_default():
     upstream_calls = 0
 

@@ -50,6 +50,7 @@ class Settings:
     cors_origins: tuple[str, ...]
     trusted_hosts: tuple[str, ...]
     max_request_bytes: int
+    max_prompt_images: int
     max_pdf_bytes: int
     max_pdf_pages: int
     max_rendered_pages: int
@@ -96,6 +97,7 @@ class Settings:
         if invalid:
             raise ValueError(f"Gateway settings must be positive: {', '.join(invalid)}")
         non_negative = {
+            "max_prompt_images": self.max_prompt_images,
             "max_rendered_pages": self.max_rendered_pages,
             "max_extracted_chars": self.max_extracted_chars,
             "max_inflight": self.max_inflight,
@@ -146,6 +148,10 @@ class Settings:
             cors_origins=_csv("GATEWAY_CORS_ORIGINS", "*"),
             trusted_hosts=_csv("GATEWAY_TRUSTED_HOSTS", "*"),
             max_request_bytes=_integer("GATEWAY_MAX_REQUEST_BYTES", default_request_bytes),
+            max_prompt_images=_integer(
+                "GATEWAY_MAX_PROMPT_IMAGES",
+                _integer("LOCAL_MAX_PROMPT_IMAGES", 4),
+            ),
             max_pdf_bytes=max_pdf_bytes,
             max_pdf_pages=_integer("PDF_COMPAT_MAX_PAGES", 64),
             max_rendered_pages=_integer("PDF_COMPAT_MAX_RENDERED_PAGES", 24),

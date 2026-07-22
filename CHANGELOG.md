@@ -26,6 +26,8 @@ and the project intends to follow [Semantic Versioning](https://semver.org/).
 - Incremental Gemini `streamGenerateContent` conversion for fragmented OpenAI
   SSE, including text, thinking, function calls, finish reasons, and usage.
 - Request IDs returned through `X-Request-ID`.
+- Configurable Anthropic image-history compaction that preserves the newest
+  images within vLLM's per-prompt multimodal limit.
 - Multi-stage, non-root gateway image and a hardened Compose service with a
   read-only root filesystem, dropped capabilities, `no-new-privileges`, PID
   limit, init process, and bounded temporary filesystem.

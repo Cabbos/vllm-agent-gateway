@@ -379,6 +379,7 @@ async def _proxy_request(request: Request, path: str, config: Settings) -> Respo
                 payload,
                 served_model=config.served_model,
                 convert_document=service.convert,
+                max_prompt_images=config.max_prompt_images,
             )
             body = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode()
         elif request.method == "POST" and path in {

@@ -7,12 +7,14 @@ def test_settings_support_generic_and_legacy_names(monkeypatch):
     monkeypatch.setenv("SERVED_MODEL", "test-model")
     monkeypatch.setenv("MODEL_CONTEXT_LENGTH", "65536")
     monkeypatch.setenv("GATEWAY_API_KEYS", "first, second")
+    monkeypatch.setenv("GATEWAY_MAX_PROMPT_IMAGES", "6")
 
     settings = Settings.from_env()
 
     assert settings.served_model == "test-model"
     assert settings.model_context_length == 65536
     assert settings.api_keys == ("first", "second")
+    assert settings.max_prompt_images == 6
 
 
 def test_default_request_limit_can_hold_a_maximum_base64_pdf(monkeypatch):
@@ -43,6 +45,13 @@ def test_invalid_boolean_fails_fast(monkeypatch):
 
 def test_invalid_admission_limit_fails_fast(monkeypatch):
     monkeypatch.setenv("GATEWAY_MAX_INFLIGHT", "-1")
+
+    with pytest.raises(ValueError, match="cannot be negative"):
+        Settings.from_env()
+
+
+def test_negative_prompt_image_limit_fails_fast(monkeypatch):
+    monkeypatch.setenv("GATEWAY_MAX_PROMPT_IMAGES", "-1")
 
     with pytest.raises(ValueError, match="cannot be negative"):
         Settings.from_env()
