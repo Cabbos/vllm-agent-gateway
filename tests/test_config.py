@@ -1,3 +1,5 @@
+import pytest
+
 from vllm_agent_gateway.config import Settings
 
 
@@ -13,6 +15,39 @@ def test_settings_support_generic_and_legacy_names(monkeypatch):
     assert settings.model_context_length == 65536
     assert settings.api_keys == ("first", "second")
     assert settings.max_prompt_images == 6
+
+
+def test_default_request_limit_can_hold_a_maximum_base64_pdf(monkeypatch):
+    monkeypatch.setenv("PDF_COMPAT_MAX_BYTES", str(9 * 1024 * 1024))
+    monkeypatch.delenv("GATEWAY_MAX_REQUEST_BYTES", raising=False)
+
+    settings = Settings.from_env()
+
+    assert settings.max_request_bytes > (settings.max_pdf_bytes * 4 + 2) // 3
+
+
+def test_upstream_and_client_keys_are_configured_separately(monkeypatch):
+    monkeypatch.setenv("GATEWAY_API_KEYS", "client-one,client-two")
+    monkeypatch.setenv("VLLM_UPSTREAM_API_KEY", "backend-only")
+
+    settings = Settings.from_env()
+
+    assert settings.api_keys == ("client-one", "client-two")
+    assert settings.upstream_api_key == "backend-only"
+
+
+def test_invalid_boolean_fails_fast(monkeypatch):
+    monkeypatch.setenv("GATEWAY_METRICS_ENABLED", "sometimes")
+
+    with pytest.raises(ValueError, match="boolean"):
+        Settings.from_env()
+
+
+def test_invalid_admission_limit_fails_fast(monkeypatch):
+    monkeypatch.setenv("GATEWAY_MAX_INFLIGHT", "-1")
+
+    with pytest.raises(ValueError, match="cannot be negative"):
+        Settings.from_env()
 
 
 def test_legacy_model_environment_names(monkeypatch):
