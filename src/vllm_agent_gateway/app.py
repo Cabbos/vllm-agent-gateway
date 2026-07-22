@@ -497,9 +497,7 @@ def _convert_content_blocks(blocks: list[Any]) -> tuple[list[Any], list[dict[str
     return converted, events
 
 
-def _compact_anthropic_image_history(
-    payload: dict[str, Any], events: list[dict[str, Any]]
-) -> None:
+def _compact_anthropic_image_history(payload: dict[str, Any], events: list[dict[str, Any]]) -> None:
     """Keep only the newest raw images across an Anthropic conversation.
 
     Anthropic clients resend the complete message history on every request, so

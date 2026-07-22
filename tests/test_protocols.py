@@ -85,11 +85,7 @@ def test_anthropic_history_keeps_only_newest_images():
         }
     )
 
-    top_level = [
-        block
-        for message in payload["messages"]
-        for block in message["content"]
-    ]
+    top_level = [block for message in payload["messages"] for block in message["content"]]
     retained = [block["source"]["data"] for block in top_level if block["type"] == "image"]
     nested = payload["messages"][2]["content"][1]["content"][0]
     compacted = next(event for event in events if event["code"] == "image_history_compacted")
