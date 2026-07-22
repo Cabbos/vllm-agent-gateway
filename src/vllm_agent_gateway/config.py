@@ -36,6 +36,7 @@ class Settings:
     cors_origins: tuple[str, ...]
     trusted_hosts: tuple[str, ...]
     max_request_bytes: int
+    max_prompt_images: int
     max_pdf_bytes: int
     max_pdf_pages: int
     max_rendered_pages: int
@@ -69,6 +70,13 @@ class Settings:
             cors_origins=_csv("GATEWAY_CORS_ORIGINS", "*"),
             trusted_hosts=_csv("GATEWAY_TRUSTED_HOSTS", "*"),
             max_request_bytes=_integer("GATEWAY_MAX_REQUEST_BYTES", 64 * 1024 * 1024),
+            max_prompt_images=max(
+                0,
+                _integer(
+                    "GATEWAY_MAX_PROMPT_IMAGES",
+                    _integer("LOCAL_MAX_PROMPT_IMAGES", 4),
+                ),
+            ),
             max_pdf_bytes=_integer("PDF_COMPAT_MAX_BYTES", 50 * 1024 * 1024),
             max_pdf_pages=_integer("PDF_COMPAT_MAX_PAGES", 64),
             max_rendered_pages=_integer("PDF_COMPAT_MAX_RENDERED_PAGES", 24),

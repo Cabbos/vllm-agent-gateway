@@ -159,6 +159,10 @@ Searchable pages are extracted as text. Pages without meaningful text are render
 
 Default limits are 50 MiB, 64 pages, 24 rendered scan pages, and 500,000 extracted characters. All are configurable through environment variables.
 
+## Multimodal history compaction
+
+Anthropic clients resend their complete conversation on each request, including images from older turns. Set `GATEWAY_MAX_PROMPT_IMAGES` (default `4`) at or below vLLM's `--limit-mm-per-prompt` image count. The gateway retains the newest images and replaces older images with lightweight text placeholders after PDF conversion. Text history remains intact, and the response includes `image_history_compacted` in `x-local-anthropic-compat` whenever compaction occurs.
+
 ## Authentication and deployment safety
 
 Set `GATEWAY_API_KEYS` to a comma-separated list. When non-empty, the gateway accepts:

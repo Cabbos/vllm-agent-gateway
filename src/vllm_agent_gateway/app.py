@@ -37,6 +37,7 @@ from .config import settings
 UPSTREAM = settings.upstream
 SERVED_MODEL = settings.served_model
 MODEL_CONTEXT_LENGTH = settings.model_context_length
+MAX_PROMPT_IMAGES = settings.max_prompt_images
 MAX_PDF_BYTES = settings.max_pdf_bytes
 MAX_PDF_PAGES = settings.max_pdf_pages
 MAX_RENDERED_PAGES = settings.max_rendered_pages
@@ -496,6 +497,55 @@ def _convert_content_blocks(blocks: list[Any]) -> tuple[list[Any], list[dict[str
     return converted, events
 
 
+def _compact_anthropic_image_history(
+    payload: dict[str, Any], events: list[dict[str, Any]]
+) -> None:
+    """Keep only the newest raw images across an Anthropic conversation.
+
+    Anthropic clients resend the complete message history on every request, so
+    vLLM's per-prompt image limit includes historical images. Run this after
+    document conversion so scanned PDF pages and tool-result images share the
+    same budget.
+    """
+    image_locations: list[tuple[list[Any], int]] = []
+
+    def collect(blocks: Any) -> None:
+        if not isinstance(blocks, list):
+            return
+        for index, block in enumerate(blocks):
+            if not isinstance(block, dict):
+                continue
+            if block.get("type") == "image":
+                image_locations.append((blocks, index))
+            elif block.get("type") == "tool_result":
+                collect(block.get("content"))
+
+    for message in payload.get("messages", []):
+        if isinstance(message, dict):
+            collect(message.get("content"))
+
+    omitted = max(0, len(image_locations) - MAX_PROMPT_IMAGES)
+    if not omitted:
+        return
+
+    placeholder = (
+        "[Earlier image omitted by the local gateway to stay within the "
+        f"{MAX_PROMPT_IMAGES}-image prompt limit. Its visual data is not "
+        "available in this turn.]"
+    )
+    for blocks, index in image_locations[:omitted]:
+        blocks[index] = {"type": "text", "text": placeholder}
+
+    events.append(
+        {
+            "code": "image_history_compacted",
+            "images_seen": len(image_locations),
+            "images_retained": len(image_locations) - omitted,
+            "images_omitted": omitted,
+        }
+    )
+
+
 def _apply_native_thinking(payload: dict[str, Any], events: list[dict[str, Any]]) -> None:
     if "thinking" not in payload:
         return
@@ -790,6 +840,7 @@ def transform_anthropic_request(payload: Any) -> tuple[Any, list[dict[str, Any]]
         content, content_events = _convert_content_blocks(message["content"])
         message["content"] = content
         events.extend(content_events)
+    _compact_anthropic_image_history(payload, events)
     return payload, events
 
 
