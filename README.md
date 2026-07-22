@@ -1,15 +1,54 @@
 # vLLM Agent Gateway
 
-A Linux-first, multi-protocol compatibility gateway for a local
-[vLLM](https://github.com/vllm-project/vllm) server.
+[![CI](https://github.com/Cabbos/vllm-agent-gateway/actions/workflows/ci.yml/badge.svg)](https://github.com/Cabbos/vllm-agent-gateway/actions/workflows/ci.yml)
+![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)
+![Coverage](https://img.shields.io/badge/coverage-80%25-brightgreen)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-It lets Claude Code, Codex, OpenAI-compatible, Ollama-compatible, Gemini-style,
-and Azure OpenAI-style clients share one local model. The gateway routes model
-aliases, translates protocol-specific tool and thinking fields, streams
-responses, and converts PDF/plain-text inputs for multimodal models.
+**Run Claude Code, Codex, OpenAI, Ollama, Gemini-style, and Azure-style clients
+against one local [vLLM](https://github.com/vllm-project/vllm) model.**
+
+The gateway is a Linux-first protocol and resource-control layer for private
+LLM deployments. It translates tools, thinking fields, streaming events, and
+documents while enforcing authentication, request budgets, concurrency, rate
+limits, and safe multimodal-history compaction.
 
 > Status: alpha. v0.2 is designed for local and private-network deployments. It
 > is not a complete replacement for the cloud services whose APIs it emulates.
+
+## Why this project exists
+
+Agent clients speak similar but incompatible APIs, and they often resend large
+conversation histories on every turn. A raw vLLM endpoint does not solve those
+client differences or protect a single GPU from oversized documents, excess
+images, burst concurrency, abandoned streams, and untrusted remote URLs.
+
+This gateway keeps those concerns outside the model server:
+
+| Engineering problem | Gateway behavior |
+|---|---|
+| Five client API families target one model | Bidirectional request/response adaptation and model alias routing |
+| Gemini streaming differs from OpenAI SSE | Fragment-tolerant incremental conversion without buffering the full response |
+| Old images remain in agent conversation history | Preserve the newest images and replace older payloads with explicit placeholders |
+| A single GPU cannot absorb unlimited work | Bounded in-flight requests, queueing, rate limits, and cancellation-aware cleanup |
+| Documents and URLs cross a trust boundary | Byte/page/pixel/time budgets plus DNS, redirect, peer-IP, and allowlist checks |
+| Compatibility layers are hard to regress safely | 97 tests, 80% coverage gate, mypy, complexity limits, dependency audit, and container build CI |
+
+## Verified project snapshot
+
+- Exercised end to end on an RTX 5090 32 GiB with
+  `Qwen3.6-35B-A3B-NVFP4-Fast` and a 196,608-token model limit.
+- OpenAI, Anthropic, Ollama, Gemini-style, and Azure-style request surfaces were
+  validated against the same vLLM process.
+- Single 131,072- and 192,000-token requests completed successfully; two
+  distinct 192,000-token requests were admitted together and effectively
+  scheduled close to serially by the backend.
+- Current CI validates Python 3.11/3.12, linting, formatting, typing, tests,
+  dependency safety, and the production container build.
+
+The hardware-specific observations and their limits are recorded in the
+[validated 32 GiB profile](docs/validated-profile-qwen36-5090.md). They are a
+capacity smoke, not universal throughput claims.
 
 ## Supported surfaces
 
@@ -25,6 +64,24 @@ responses, and converts PDF/plain-text inputs for multimodal models.
 All requested model IDs are routed to `SERVED_MODEL`. Clients that insist on
 `gpt-*`, `claude-*`, Gemini model names, Azure deployment IDs, or Ollama tags can
 therefore share one local backend.
+
+## See the compatibility layer in one command
+
+With a gateway already running, exercise every supported generation protocol
+using the dependency-free smoke tool:
+
+```bash
+GATEWAY_API_KEY=change-me python scripts/load_smoke.py \
+  --protocol all --concurrency 1 --prompt-size tiny
+```
+
+It emits JSON Lines with per-protocol success counts, wall time, requests per
+second, mean latency, and p95 latency, and exits non-zero if any request fails.
+Preview the exact plan without sending traffic:
+
+```bash
+python scripts/load_smoke.py --dry-run --protocol all --concurrency 1
+```
 
 ## Architecture
 
@@ -282,6 +339,9 @@ reasoning is emitted correctly.
 - [v0.1 to v0.2 migration](docs/migration-v0.2.md)
 - [Complete configuration reference](docs/configuration.md)
 - [Architecture](docs/architecture.md)
+- [Engineering case studies](docs/engineering-notes.md)
+- [Reproducible benchmarking guide](docs/benchmarking.md)
+- [Project roadmap](docs/roadmap.md)
 - [Production safety boundaries](docs/production-security.md)
 - [Validated 32 GiB Qwen/RTX 5090 profile](docs/validated-profile-qwen36-5090.md)
 - [Security policy](SECURITY.md)

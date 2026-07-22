@@ -37,6 +37,8 @@ and the project intends to follow [Semantic Versioning](https://semver.org/).
   profiles.
 - A recorded 32 GiB RTX 5090/Qwen validation profile covering protocol,
   concurrency, PDF/tool, Gemini streaming, and exact 192K-context smoke tests.
+- Portfolio-oriented project overview, engineering case studies, reproducible
+  benchmarking guidance, and an explicit operational roadmap.
 
 ### Changed
 
