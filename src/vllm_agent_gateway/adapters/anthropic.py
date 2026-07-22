@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Iterator
 from typing import Any
 
 from ..errors import GatewayError
@@ -204,11 +204,59 @@ async def _convert_blocks(
     return converted, events
 
 
+def _image_locations(blocks: Any) -> Iterator[tuple[list[Any], int]]:
+    if not isinstance(blocks, list):
+        return
+    for index, block in enumerate(blocks):
+        if not isinstance(block, dict):
+            continue
+        if block.get("type") == "image":
+            yield blocks, index
+        elif block.get("type") == "tool_result":
+            yield from _image_locations(block.get("content"))
+
+
+def _compact_image_history(
+    payload: dict[str, Any],
+    *,
+    max_prompt_images: int,
+    events: list[CompatibilityEvent],
+) -> None:
+    """Replace the oldest images after the prompt-wide budget is exhausted."""
+    locations = [
+        location
+        for message in payload.get("messages", [])
+        if isinstance(message, dict)
+        for location in _image_locations(message.get("content"))
+    ]
+    omitted_count = max(0, len(locations) - max_prompt_images)
+    if omitted_count == 0:
+        return
+
+    placeholder = (
+        "[Earlier image omitted by the local gateway to stay within the "
+        f"{max_prompt_images}-image prompt limit. Its visual data is not "
+        "available in this turn.]"
+    )
+    for blocks, index in locations[:omitted_count]:
+        blocks[index] = {"type": "text", "text": placeholder}
+
+    events.append(
+        {
+            "code": "image_history_compacted",
+            "images_seen": len(locations),
+            "images_retained": len(locations) - omitted_count,
+            "images_omitted": omitted_count,
+        }
+    )
+
+
 async def transform_request(
     payload: Any,
     *,
     served_model: str,
     convert_document: DocumentConverter,
+    max_prompt_images: int = 4,
 ) -> tuple[Any, list[CompatibilityEvent]]:
     if not isinstance(payload, dict) or not isinstance(payload.get("messages"), list):
         return payload, []
@@ -233,4 +281,9 @@ async def transform_request(
                 message["content"], convert_document
             )
             events.extend(block_events)
+    _compact_image_history(
+        payload,
+        max_prompt_images=max_prompt_images,
+        events=events,
+    )
     return payload, events

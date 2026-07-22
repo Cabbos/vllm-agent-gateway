@@ -50,6 +50,13 @@ def test_invalid_admission_limit_fails_fast(monkeypatch):
         Settings.from_env()
 
 
+def test_negative_prompt_image_limit_fails_fast(monkeypatch):
+    monkeypatch.setenv("GATEWAY_MAX_PROMPT_IMAGES", "-1")
+
+    with pytest.raises(ValueError, match="cannot be negative"):
+        Settings.from_env()
+
+
 def test_legacy_model_environment_names(monkeypatch):
     monkeypatch.delenv("SERVED_MODEL", raising=False)
     monkeypatch.delenv("MODEL_CONTEXT_LENGTH", raising=False)

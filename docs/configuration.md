@@ -32,6 +32,7 @@ needed when changing the host port.
 | Variable | Code default | Meaning |
 |---|---:|---|
 | `GATEWAY_MAX_REQUEST_BYTES` | derived | Maximum declared and actually received request body |
+| `GATEWAY_MAX_PROMPT_IMAGES` | `4` | Newest Anthropic images retained across the complete message history |
 | `GATEWAY_MAX_INFLIGHT` | `0` | Concurrent non-health requests; `0` disables the limiter |
 | `GATEWAY_MAX_QUEUE_SIZE` | `0` | Waiting requests when the concurrency limit is full |
 | `GATEWAY_QUEUE_TIMEOUT_SECONDS` | `30` | Maximum queue wait before `429` |
@@ -50,6 +51,13 @@ The request limiter reads actual ASGI chunks, so omitting or falsifying
 `Content-Length` does not bypass it. Queue and rate state are local to one
 process. Streaming requests hold an in-flight slot until the response finishes
 or disconnects.
+
+Set `GATEWAY_MAX_PROMPT_IMAGES` at or below vLLM's
+`--limit-mm-per-prompt` image count. Anthropic clients resend historical
+images on every request; the gateway replaces the oldest images with text
+placeholders after document conversion so scanned PDF pages share the same
+budget. Compacted responses include `image_history_compacted` in the
+`x-local-anthropic-compat` header.
 
 Recommended starting point for a single 32 GiB GPU:
 
