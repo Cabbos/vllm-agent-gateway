@@ -20,6 +20,15 @@ OpenAI clients, Ollama clients, and Gemini-style clients share one private
 
 </div>
 
+<p align="center">
+  <a href="https://github.com/Cabbos/vllm-agent-gateway/releases/download/showcase-v1/vllm-agent-gateway-showcase-25s.mp4">
+    <img src="docs/assets/vllm-agent-gateway-showcase.gif" width="800" alt="vLLM Agent Gateway: one local model, five API dialects, bounded multimodal history, and visible engineering evidence">
+  </a>
+</p>
+<p align="center">
+  <sub>11.5-second README cut · click to watch the full 25-second showcase with audio</sub>
+</p>
+
 > **Not another inference server.** vLLM owns model execution. This gateway owns
 > the boundary around it: protocol translation, model aliasing, admission
 > control, document conversion, authentication, streaming, and observability.
