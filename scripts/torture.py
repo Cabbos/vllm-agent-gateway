@@ -431,8 +431,7 @@ def service_is_ready(base_url: str, model: str) -> bool:
         return False
 
 
-def run_controller(args: argparse.Namespace) -> int:
-    levels = levels_for(args.profile)
+def run_preflight(args: argparse.Namespace, levels: list[Level]) -> int | None:
     if args.dry_run:
         print(json.dumps([asdict(level) for level in levels], ensure_ascii=False, indent=2))
         return 0
@@ -446,6 +445,13 @@ def run_controller(args: argparse.Namespace) -> int:
             file=sys.stderr,
         )
         return 2
+    return None
+
+
+def run_controller(args: argparse.Namespace) -> int:
+    levels = levels_for(args.profile)
+    if (preflight_code := run_preflight(args, levels)) is not None:
+        return preflight_code
 
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)

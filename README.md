@@ -40,6 +40,9 @@ vLLM Agent Gateway gives them one predictable local endpoint:
 - **Protect the GPU.** Bounded in-flight work, a finite wait queue, queue
   deadlines, per-key rate limits, and body/document limits are available at the
   boundary.
+- **Compact multimodal history safely.** The newest images remain intact while
+  older visual payloads become explicit text placeholders before they can
+  exceed vLLM's per-prompt image limit.
 - **Keep credentials separated.** Client keys are consumed by the gateway and
   never forwarded; the vLLM hop can use a different credential.
 - **Make behavior inspectable.** Request IDs, bounded-label Prometheus metrics,
@@ -232,6 +235,22 @@ The Compose example starts conservatively at two vLLM sequences and two gateway
 slots for a single 32 GiB GPU. Reduce both to one when long-context latency
 predictability matters. Benchmark before increasing either value.
 
+## Multimodal history compaction
+
+Anthropic clients resend the full conversation on every turn, including images
+that appeared much earlier in the session. That history can eventually exceed
+vLLM's `--limit-mm-per-prompt` setting even when the current request contains
+only one new image.
+
+```dotenv
+GATEWAY_MAX_PROMPT_IMAGES=4
+```
+
+The gateway preserves the newest image blocks and replaces older image payloads
+with explicit text placeholders. Message order, text, tool calls, and recent
+visual context remain intact. Set this value at or below vLLM's configured image
+count; use `0` only when the backend accepts an unbounded image history.
+
 ## Documents without an unbounded attack surface
 
 Inline base64 PDF and UTF-8 text inputs are supported. Searchable PDF pages
@@ -347,7 +366,9 @@ pre-commit install
 ```
 
 It covers protocol transforms, fragmented streams, cancellation, malicious
-document inputs, authentication, admission controls, and bounded metrics.
+document inputs, multimodal-history compaction, authentication, admission
+controls, and bounded metrics. CI also enforces type checking, 80% source
+coverage, and a McCabe complexity ceiling of 18.
 
 ### Live protocol/load smoke
 
@@ -411,6 +432,9 @@ to recreate cloud control planes.
 - [Architecture and request flow](docs/architecture.md)
 - [Production safety boundaries](docs/production-security.md)
 - [Validated 32 GiB Qwen / RTX 5090 profile](docs/validated-profile-qwen36-5090.md)
+- [Benchmarking methodology](docs/benchmarking.md)
+- [Engineering case studies](docs/engineering-notes.md)
+- [Operational roadmap](docs/roadmap.md)
 - [v0.1 to v0.2 migration](docs/migration-v0.2.md)
 - [Security policy](SECURITY.md)
 - [Changelog](CHANGELOG.md)
