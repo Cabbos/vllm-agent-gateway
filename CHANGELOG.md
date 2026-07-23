@@ -35,8 +35,14 @@ and the project intends to follow [Semantic Versioning](https://semver.org/).
   gateway image builds.
 - Dependency-free multi-protocol load-smoke script with guarded large-prompt
   profiles.
+- Guarded capacity torture runner with self-observed vLLM stall detection,
+  exact-answer anchors, scheduler/KV metrics, and GPU sampling.
+- Deterministic capability-degradation evaluation for executable code,
+  evidence-grounded answers, and real tool selection across context pressure.
 - A recorded 32 GiB RTX 5090/Qwen validation profile covering protocol,
   concurrency, PDF/tool, Gemini streaming, and exact 192K-context smoke tests.
+- Portfolio-oriented project overview, engineering case studies, reproducible
+  benchmarking guidance, and an explicit operational roadmap.
 
 ### Changed
 
