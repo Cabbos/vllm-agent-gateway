@@ -21,7 +21,7 @@ OpenAI clients, Ollama clients, and Gemini-style clients share one private
 </div>
 
 <p align="center">
-  <a href="https://github.com/Cabbos/vllm-agent-gateway/releases/download/showcase-v1/vllm-agent-gateway-showcase-25s.mp4">
+  <a href="https://github.com/Cabbos/vllm-agent-gateway/releases/download/showcase-v1/vllm-agent-gateway-showcase-25s.mp4" aria-label="Watch the full 25-second vLLM Agent Gateway showcase">
     <img src="docs/assets/vllm-agent-gateway-showcase.gif" width="800" alt="vLLM Agent Gateway: one local model, five API dialects, bounded multimodal history, and visible engineering evidence">
   </a>
 </p>
